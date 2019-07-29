@@ -52,7 +52,7 @@ namespace test
             BigInteger serial = new BigInteger(128, new SecureRandom());
             DateTime from = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day);
 
-            DateTime to = from.AddMilliseconds((1 * 86400000L));
+            DateTime to = from.AddYears(5);
   
 
             V3TbsCertificateGenerator tbsGen = new V3TbsCertificateGenerator();

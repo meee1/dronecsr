@@ -25,6 +25,27 @@ namespace test
     {
         private static void Main(string[] args)
         {
+            //openssl genrsa -out private.pem 2048
+            //openssl req -sha256 -new -key private.pem -out csr.pem
+
+            //openssl rsa -in private.pem -text -noout
+            //openssl req -in csr.pem -text -noout
+
+            //openssl sha256 tbs.cer
+
+            //test.exe ksg.cer csr.pem
+            // get its signature - enter
+
+            // test.exe SignCert tbs.cer tbs.sig
+
+            //openssl x509 -in cert.cer -inform der -text
+
+            //openssl verify -verbose -CAfile <(cat Intermediate.pem RootCert.pem) UserCert.pem
+            //openssl pkcs7 -print_certs -in ksg.p7b -inform DER -out certificate.cer -outform pem
+
+            //openssl x509 -inform DER -in cert.cer -outform PEM -out cert.pem
+
+
             Console.WriteLine("Usage: test2.exe 'issuer.cer' 'dronecsr.csr' ");
             Console.WriteLine("Usage: test2.exe SignCert 'tbs.cer' 'tbs.sig' ");
             if (args.Length == 2)
@@ -69,12 +90,24 @@ namespace test
             tbsGen.SetSubjectPublicKeyInfo(SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(csr.GetPublicKey()));
             tbsGen.SetSubject(csrinfo.Subject);
 
+            // add certificate purposes
+            Asn1EncodableVector vector = new Asn1EncodableVector();
+            vector.Add(new DerObjectIdentifier("1.3.6.1.5.5.7.3.2"));
+            vector.Add(new DerObjectIdentifier("1.3.6.1.4.1.311.20.2.2"));
+            vector.Add(new DerObjectIdentifier("1.3.6.1.4.1.311.10.3.12"));
+            vector.Add(new DerObjectIdentifier("1.3.6.1.5.5.7.3.4"));
+            DerSequence seq = new DerSequence(vector);
+            X509ExtensionsGenerator extGenerator = new X509ExtensionsGenerator();
+            extGenerator.AddExtension(X509Extensions.ExtendedKeyUsage, false, seq);
+
+            tbsGen.SetExtensions(extGenerator.Generate());
+
             tbsGen.SetSignature(sigAlgId);
 
             TbsCertificateStructure tbsCert = tbsGen.GenerateTbsCertificate();
 
             // save the TBS
-            System.IO.File.WriteAllBytes("tbs.cer", tbsCert.GetEncoded());
+            System.IO.File.WriteAllBytes("tbs.cer", tbsCert.GetDerEncoded());
 
             Console.WriteLine("generate the signature (SHA->DER->ENCRYPT) for tbs.cer and call it tbs.sig");
             Console.WriteLine("And then press enter");
@@ -91,9 +124,11 @@ namespace test
         {
             AlgorithmIdentifier sigAlgId = new AlgorithmIdentifier(PkcsObjectIdentifiers.Sha256WithRsaEncryption);
 
+
+
             var t1 = GenerateJcaObject(
                 TbsCertificateStructure.GetInstance(Asn1Sequence.FromByteArray(File.ReadAllBytes(tbsfile))), sigAlgId,
-                System.IO.File.ReadAllBytes(tbssig).ToArray());
+                System.IO.File.ReadAllBytes(tbssig).Take(256).ToArray());
 
             System.IO.File.WriteAllBytes("cert.cer", t1.GetEncoded());
 

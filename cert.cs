@@ -23,9 +23,16 @@ namespace test
     {
         private static void Main(string[] args)
         {
-            Console.WriteLine("Usage: test2.exe 'issue.cer' 'dronecsr.csr' ");
-            if(args.Length == 2)
+            Console.WriteLine("Usage: test2.exe 'issuer.cer' 'dronecsr.csr' ");
+            Console.WriteLine("Usage: test2.exe SignCert 'tbs.cer' 'tbs.sig' ");
+            if (args.Length == 2)
+            {
                 cert.CreateCert(args[0], args[1]);
+            }
+            else if (args.Length == 3 && args[0] == "SignCert")
+            {
+                cert.SignCert(args[1],args[2]);
+            }
             else
             {
                 Console.WriteLine("No Command");
@@ -37,9 +44,6 @@ namespace test
     {
         public static void CreateCert(string parentcer, string csrFile)
         {
-            //var parentcer = @"C:\Users\mich1\Desktop\Hex\cl2_mughilan.cer";
-            //var csrFile = @"C:\Users\mich1\Desktop\Hex\cert.csr";
-
             var issuer = new X509CertificateParser().ReadCertificate(File.OpenRead(parentcer));
 
             var reader = new PemReader(File.OpenText(csrFile));
@@ -47,7 +51,7 @@ namespace test
             var csr = (Pkcs10CertificationRequest)(reader.ReadObject());
             var csrinfo = csr.GetCertificationRequestInfo();
 
-            AlgorithmIdentifier sigAlgId = new AlgorithmIdentifier(PkcsObjectIdentifiers.Sha256WithRsaEncryption); // new DefaultSignatureAlgorithmIdentifierFinder().find("SHA1withRSA");
+            AlgorithmIdentifier sigAlgId = new AlgorithmIdentifier(PkcsObjectIdentifiers.Sha256WithRsaEncryption);
             AlgorithmIdentifier digAlgId = new DefaultDigestAlgorithmIdentifierFinder().find(sigAlgId);
             BigInteger serial = new BigInteger(128, new SecureRandom());
             DateTime from = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day);
@@ -71,11 +75,27 @@ namespace test
             System.IO.File.WriteAllBytes("tbs.cer", tbsCert.GetEncoded());
 
             Console.WriteLine("generate the signature (SHA->DER->ENCRYPT) for tbs.cer and call it tbs.sig");
+            Console.WriteLine("And then press enter");
             Console.ReadLine();
 
             var t1 = GenerateJcaObject(tbsCert, sigAlgId, System.IO.File.ReadAllBytes("tbs.sig").Take(256).ToArray());
 
             System.IO.File.WriteAllBytes("cert.cer", t1.GetEncoded());
+
+            Console.WriteLine("saved as cert.cer");
+        }
+
+        public static void SignCert(string tbsfile, string tbssig)
+        {
+            AlgorithmIdentifier sigAlgId = new AlgorithmIdentifier(PkcsObjectIdentifiers.Sha256WithRsaEncryption);
+
+            var t1 = GenerateJcaObject(
+                TbsCertificateStructure.GetInstance(Asn1Sequence.FromByteArray(File.ReadAllBytes(tbsfile))), sigAlgId,
+                System.IO.File.ReadAllBytes(tbssig).ToArray());
+
+            System.IO.File.WriteAllBytes("cert.cer", t1.GetEncoded());
+
+            Console.WriteLine("saved as cert.cer");
         }
 
         static X509Certificate GenerateJcaObject(

@@ -16,6 +16,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Org.BouncyCastle.Crypto.Digests;
+using Org.BouncyCastle.Crypto.Signers;
 
 namespace test
 {
@@ -96,6 +98,51 @@ namespace test
             System.IO.File.WriteAllBytes("cert.cer", t1.GetEncoded());
 
             Console.WriteLine("saved as cert.cer");
+        }
+
+        public static AsymmetricCipherKeyPair ReadAsymmetricKeyParameter(string pemFilename)
+        {
+            var fileStream = System.IO.File.OpenText(pemFilename);
+            var pemReader = new Org.BouncyCastle.OpenSsl.PemReader(fileStream);
+            var KeyParameter = (Org.BouncyCastle.Crypto.AsymmetricCipherKeyPair)pemReader.ReadObject();
+            return KeyParameter;
+        }
+
+        public static void SelfSign(string privateKey, string csrFile)
+        {
+            var pk = ReadAsymmetricKeyParameter(privateKey);
+
+            var PKKeyInfo = PrivateKeyInfoFactory.CreatePrivateKeyInfo(pk.Private);
+
+            var reader = new PemReader(File.OpenText(csrFile));
+
+            var csr = (Pkcs10CertificationRequest)(reader.ReadObject());
+            var csrinfo = csr.GetCertificationRequestInfo();
+
+            AlgorithmIdentifier sigAlgId = new AlgorithmIdentifier(PkcsObjectIdentifiers.Sha256WithRsaEncryption);
+            AlgorithmIdentifier digAlgId = new DefaultDigestAlgorithmIdentifierFinder().find(sigAlgId);
+            BigInteger serial = new BigInteger(128, new SecureRandom());
+            DateTime from = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day);
+
+            DateTime to = from.AddYears(20);
+
+
+            X509V3CertificateGenerator tbsGen = new X509V3CertificateGenerator();
+            tbsGen.SetIssuerDN(csrinfo.Subject);
+            tbsGen.SetSerialNumber(serial);
+            tbsGen.SetNotBefore((from));
+            tbsGen.SetNotAfter((to));
+            tbsGen.SetPublicKey(csr.GetPublicKey());
+            tbsGen.SetSubjectDN(csrinfo.Subject);
+
+            tbsGen.SetSignatureAlgorithm("SHA256WITHRSA");
+
+            var cert = tbsGen.Generate(pk.Private);
+
+            // save the TBS
+            System.IO.File.WriteAllBytes("cert.cer", cert.GetEncoded());
+
+            
         }
 
         static X509Certificate GenerateJcaObject(
